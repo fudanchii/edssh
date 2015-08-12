@@ -28,8 +28,7 @@ func NewSignerFromEd25519Key(prv *Ed25519PrivateKey) (ssh.Signer, error) {
 }
 
 type Ed25519PrivateKey struct {
-	secret *[ed25519.PrivateKeySize]byte
-	public *[ed25519.PublicKeySize]byte
+	bytes *[ed25519.PrivateKeySize]byte
 }
 
 type Ed25519PublicKey struct {
@@ -51,7 +50,8 @@ func ParseEd25519PrivateKey(keyBlock []byte) (*Ed25519PrivateKey, error) {
 	if ciphername != "none" && kdfname != "none" {
 		return nil, errors.New("edssh: encrypted key is not supported yet")
 	}
-	// kdfoption (zeroed out since we don't support encryption)
+
+	// kdfoption (zeroed out since we don't support encryption yet)
 	keyBlock, err = OpenSSHKey.ReadUint32(keyBlock, &num, err)
 
 	// number of keys (only 1)
@@ -60,6 +60,46 @@ func ParseEd25519PrivateKey(keyBlock []byte) (*Ed25519PrivateKey, error) {
 	// public key
 	var pubKeyBuf []byte
 	keyBlock, err = OpenSSHKey.ReadBuf(keyBlock, &pubKeyBuf, err)
+
+	// private key
+	var privKeyBuf []byte
+	keyBlock, err = OpenSSHKey.ReadBuf(keyBlock, &privKeyBuf, err)
+
+	var privateKey = &Ed25519PrivateKey{}
+	if err = privateKey.parseFromBuf(privKeyBuf, err); err != nil {
+		return nil, err
+	}
+
+	return privateKey, nil
+}
+
+func (ek *Ed25519PrivateKey) parseFromBuf(buf []byte, prevErr error) error {
+	if prevErr != nil {
+		return prevErr
+	}
+
+	var checkint uint32
+	buf, prevErr = OpenSSHKey.ReadUint32(buf, &checkint, prevErr)
+	buf, prevErr = OpenSSHKey.ReadUint32(buf, &checkint, prevErr)
+
+	var keyType string
+	buf, prevErr = OpenSSHKey.ReadString(buf, &keyType, prevErr)
+
+	var pubKey []byte
+	buf, prevErr = OpenSSHKey.ReadBuf(buf, &pubKey, prevErr)
+
+	var privKey []byte
+	if buf, prevErr = OpenSSHKey.ReadBuf(buf, &privKey, prevErr); prevErr != nil {
+		return prevErr
+	}
+
+	if len(privKey) != ed25519.PrivateKeySize {
+		return errors.New("edssh: invalid private key length")
+	}
+
+	*ek.bytes = privKey
+
+	return nil
 }
 
 func (ek *Ed25519PrivateKey) Public() ssh.PublicKey {

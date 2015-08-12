@@ -60,9 +60,9 @@ func (o *opensshKey) ReadUint32(buf []byte, result *uint32, prevErr error) ([]by
 	return shiftBuf(buf, UINT32_SIZE), nil
 }
 
-func shiftBuf(buf []byte, offset) []byte {
+func shiftBuf(buf []byte, offset int) []byte {
 	if len(buf) > offset {
-		return buf[:offset]
+		return buf[offset:]
 	}
 	return []byte("")
 }
