@@ -3,12 +3,15 @@ package edssh
 import (
 	"encoding/base64"
 	"encoding/pem"
+	"errors"
+	"fmt"
 	"github.com/agl/ed25519"
 	"golang.org/x/crypto/ssh"
+	"io"
 )
 
 func ParsePrivateKey(pemBytes []byte) (ssh.Signer, error) {
-	block, err := pem.Decode(pemBytes)
+	block, _ := pem.Decode(pemBytes)
 	if block == nil {
 		return nil, errors.New("edssh: key not found")
 	}
@@ -26,16 +29,18 @@ func ParsePrivateKey(pemBytes []byte) (ssh.Signer, error) {
 }
 
 type Ed25519PrivateKey struct {
-	bytes *[ed25519.PrivateKeySize]byte
+	bytes     *[ed25519.PrivateKeySize]byte
+	publicKey *Ed25519PublicKey
 }
 
 func ParseEd25519PrivateKey(keyBlock []byte) (*Ed25519PrivateKey, error) {
 	var (
 		ciphername, kdfname string
-		num, l, uint32
-		err error
+		num                 uint32
+		err                 error
+		ok                  bool
 	)
-	if keyBlock, ok := OpenSSHKey.FormatOK(keyBlock); !ok {
+	if keyBlock, ok = OpenSSHKey.FormatOK(keyBlock); !ok {
 		return nil, errors.New("edssh: invalid key")
 	}
 	keyBlock, err = OpenSSHKey.ReadString(keyBlock, &ciphername, nil)
@@ -91,24 +96,25 @@ func (ek *Ed25519PrivateKey) parseFromBuf(buf []byte, prevErr error) error {
 		return errors.New("edssh: invalid private key length")
 	}
 
-	pk := make([]byte, ed25519.PrivateKeySize)
-	copy(pk, privKey)
-	ek.bytes = &pk
+	edPubKey := new([ed25519.PublicKeySize]byte)
+	copy(edPubKey[:], pubKey)
+	ek.publicKey = &Ed25519PublicKey{edPubKey}
+
+	ek.bytes = new([ed25519.PrivateKeySize]byte)
+	copy(ek.bytes[:], privKey)
 
 	return nil
 }
 
-func (ek *Ed25519PrivateKey) Public() ssh.PublicKey {
-	pub = make([]byte, ed25519.PublicKeySize)
-	copy(pub, ek.bytes[ed25519.PublicKeySize:])
-	return &Ed25519PublicKey{&pub}
+func (ek *Ed25519PrivateKey) PublicKey() ssh.PublicKey {
+	return ek.publicKey
 }
 
 func (ek *Ed25519PrivateKey) Sign(rand io.Reader, data []byte) (*ssh.Signature, error) {
 	signature := ed25519.Sign(ek.bytes, data)
 	return &ssh.Signature{
-		Format: ek.Public().Type(),
-		Blob:   *signature,
+		Format: ek.PublicKey().Type(),
+		Blob:   (*signature)[:],
 	}, nil
 }
 
@@ -123,15 +129,18 @@ func (ek *Ed25519PublicKey) Type() string {
 func (ek *Ed25519PublicKey) Marshal() []byte {
 	var buf []byte
 	buf = append(buf, []byte(ek.Type())...)
-	buf = append(buf, 0x20, []byte(base64.StdEncoding.EncodeToString(ek.bytes))...)
+	buf = append(buf, byte(0x20))
+	buf = append(buf, []byte(base64.StdEncoding.EncodeToString((*ek.bytes)[:]))...)
 	return buf
 }
 
 func (ek *Ed25519PublicKey) Verify(message []byte, signature *ssh.Signature) error {
 	if signature.Format != ek.Type() {
-		return errors.New("edssh: signature type %s for key type %s", signature.Format, ek.Type())
+		return fmt.Errorf("edssh: signature type %s for key type %s", signature.Format, ek.Type())
 	}
-	if ok := ed25519.Verify(ek.bytes, message, signature.Blob); !ok {
+	sig := new([ed25519.SignatureSize]byte)
+	copy(sig[:], signature.Blob)
+	if ok := ed25519.Verify(ek.bytes, message, sig); !ok {
 		return errors.New("edssh: invalid signature for given message")
 	}
 	return nil
