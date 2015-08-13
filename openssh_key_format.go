@@ -33,7 +33,6 @@ func (o *opensshKey) ReadBuf(buf []byte, result *[]byte, prevErr error) ([]byte,
 	if len(buf) < UINT32_SIZE {
 		return buf, fmt.Errorf("edssh: key block length error: %v", len(buf))
 	}
-	fmt.Println(fmt.Errorf("%X", buf[:4]))
 	if buf, prevErr = o.ReadUint32(buf, &l, prevErr); prevErr != nil {
 		return buf, prevErr
 	}
