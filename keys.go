@@ -1,7 +1,6 @@
 package edssh
 
 import (
-	"encoding/base64"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -127,11 +126,14 @@ func (ek *Ed25519PublicKey) Type() string {
 }
 
 func (ek *Ed25519PublicKey) Marshal() []byte {
-	var buf []byte
-	buf = append(buf, []byte(ek.Type())...)
-	buf = append(buf, byte(0x20))
-	buf = append(buf, []byte(base64.StdEncoding.EncodeToString((*ek.bytes)[:]))...)
-	return buf
+	wirekey := struct {
+		Name string
+		Pub  []byte
+	}{
+		ek.Type(),
+		(*ek.bytes)[:],
+	}
+	return ssh.Marshal(&wirekey)
 }
 
 func (ek *Ed25519PublicKey) Verify(message []byte, signature *ssh.Signature) error {
