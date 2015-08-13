@@ -2,8 +2,8 @@ package edssh
 
 import (
 	"encoding/pem"
-	"golang.org/x/crypto/ssh"
 	"github.com/agl/ed25519"
+	"golang.org/x/crypto/ssh"
 )
 
 func ParsePrivateKey(pemBytes []byte) (ssh.Signer, error) {
@@ -28,24 +28,38 @@ func NewSignerFromEd25519Key(prv *Ed25519PrivateKey) (ssh.Signer, error) {
 }
 
 type Ed25519PrivateKey struct {
-	secret	*[ed25519.PrivateKeySize]byte
-	public	*[ed25519.PublicKeySize]byte
+	secret *[ed25519.PrivateKeySize]byte
+	public *[ed25519.PublicKeySize]byte
 }
 
 type Ed25519PublicKey struct {
-	bytes	*[ed25519.PublicKeySize]byte
+	bytes *[ed25519.PublicKeySize]byte
 }
 
 func ParseEd25519PrivateKey(keyBlock []byte) (*Ed25519PrivateKey, error) {
 	var (
 		ciphername, kdfname string
+		num, l, uint32
 		err error
 	)
-	if keyBlock, ok := OpenSSH.PrivKeyOK(keyBlock); !ok {
+	if keyBlock, ok := OpenSSHKey.FormatOK(keyBlock); !ok {
 		return nil, errors.New("edssh: invalid key")
 	}
-	keyBlock, err = OpenSSH.ReadBuf(keyBlock, &ciphername, nil)
-	keyBlock, err = OpenSSH.ReadBuf(keyBlock, &kdfname, err)
+	keyBlock, err = OpenSSHKey.ReadString(keyBlock, &ciphername, nil)
+	keyBlock, err = OpenSSHKey.ReadString(keyBlock, &kdfname, err)
+	// TODO: support encrypted private key
+	if ciphername != "none" && kdfname != "none" {
+		return nil, errors.New("edssh: encrypted key is not supported yet")
+	}
+	// kdfoption (zeroed out since we don't support encryption)
+	keyBlock, err = OpenSSHKey.ReadUint32(keyBlock, &num, err)
+
+	// number of keys (only 1)
+	keyBlock, err = OpenSSHKey.ReadUint32(keyBlock, &num, err)
+
+	// public key
+	var pubKeyBuf []byte
+	keyBlock, err = OpenSSHKey.ReadBuf(keyBlock, &pubKeyBuf, err)
 }
 
 func (ek *Ed25519PrivateKey) Public() ssh.PublicKey {
