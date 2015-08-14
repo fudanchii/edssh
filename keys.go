@@ -100,7 +100,7 @@ func (ek *Ed25519PrivateKey) parseFromBuf(buf []byte, prevErr error) error {
 
 func (ek *Ed25519PrivateKey) Public() ssh.PublicKey {
 	pub = make([]byte, ed25519.PublicKeySize)
-	copy(pub, ek.bytes[32:])
+	copy(pub, ek.bytes[ed25519.PublicKeySize:])
 	return &Ed25519PublicKey{&pub}
 }
 
