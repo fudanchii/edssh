@@ -17,11 +17,7 @@ func ParsePrivateKey(pemBytes []byte) (ssh.Signer, error) {
 
 	switch block.Type {
 	case "OPENSSH PRIVATE KEY":
-		key, err := ParseEd25519PrivateKey(block.Bytes)
-		if err != nil {
-			return nil, err
-		}
-		return key, nil
+		return ParseEd25519PrivateKey(block.Bytes)
 	default:
 		return ssh.ParsePrivateKey(pemBytes)
 	}
