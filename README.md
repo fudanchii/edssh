@@ -4,6 +4,13 @@ ed25519 signature support for golang.org/x/crypto/ssh
 This repo can be used as a drop-in replacement for `ssh.ParsePrivateKey`.
 for example, it can be used like this:
 ``` go
+
+import (
+  "github.com/fudanchii/edssh"
+)
+
+// ...
+
 func connectSSH(addr string) {
 	pk, err := ioutil.ReadFile(privkeyFile)
 	if err != nil {
